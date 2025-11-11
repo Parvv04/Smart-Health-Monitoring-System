@@ -35,3 +35,8 @@ logs/
 # Environments
 *.env
 Pipfile.lock
+
+
+*.pyc
+
+firebase_config.json
