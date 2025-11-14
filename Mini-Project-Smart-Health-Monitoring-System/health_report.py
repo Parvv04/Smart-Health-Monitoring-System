@@ -94,7 +94,6 @@ def calculate_report():
         "eye_wetness": eye_wetness,
         "light_level": light_level,
         "disease_risk": disease_risk,
-        "slouching_rate": f"{slouch_rate:.1f}%",
         "avg_neck_angle": f"{avg_neck_angle:.1f}°",
         "avg_back_angle": f"{avg_back_angle:.1f}°",
         "message": message
@@ -126,7 +125,6 @@ def show_report():
         ("eye_wetness", "💧 Eye Wetness"),
         ("light_level", "💡 Light Level"),
         ("disease_risk", "⚠️ Disease Risk"),
-        ("slouching_rate", "🧍 Slouching Rate"),
         ("avg_neck_angle", "📐 Avg Neck Angle"),
         ("avg_back_angle", "📏 Avg Back Angle"),
     ]:

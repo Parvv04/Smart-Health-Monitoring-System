@@ -46,7 +46,7 @@ def show_notification(title, message, on_ok=None, on_view_report=None):
 
         popup.attributes('-topmost', True)
         popup.after(100, popup.bell)
-        popup.after(5000, lambda: popup.destroy() if popup.winfo_exists() else None)
+        popup.after(10000, lambda: popup.destroy() if popup.winfo_exists() else None)
 
     # Always create popup inside main thread via after()
     root = tk._default_root

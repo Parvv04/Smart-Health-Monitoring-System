@@ -4,6 +4,7 @@ from firebase_admin import credentials, db
 import os
 import json
 from datetime import datetime
+import csv
 
 def init_firebase(json_path="firebase_config.json",
                 db_url="https://smart-health-monitor-29524-default-rtdb.asia-southeast1.firebasedatabase.app/"):
@@ -69,7 +70,7 @@ class DataLogger:
                 writer = csv.writer(f)
                 writer.writerow([
                     "timestamp", "ear", "total_blinks", "blinks_last_min", 
-                    "posture_angle", "slouch_flag", "alert"
+                    "posture_angle"
                 ])
             print("✅ New log file created")
         
@@ -94,8 +95,6 @@ class DataLogger:
                     int(total_blinks or 0),
                     int(blinks_last_min or 0),
                     round(posture_angle or 0, 1),
-                    slouch_flag,
-                    alert if alert else "None"
                 ])
             print(f"✅ Data logged locally: {timestamp}")
         except Exception as e:
@@ -109,8 +108,6 @@ class DataLogger:
                 "total_blinks": total_blinks,
                 "blinks_last_min": blinks_last_min,
                 "posture_angle": posture_angle,
-                "slouch_flag": slouch_flag,
-                "alert": alert or "None",
                 "device": "laptop_camera"
             }
             push_log(self.firebase_ref, payload)

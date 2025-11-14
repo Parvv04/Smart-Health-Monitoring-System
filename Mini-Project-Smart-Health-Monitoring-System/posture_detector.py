@@ -7,7 +7,7 @@ from collections import deque
 mp_pose = mp.solutions.pose
 
 class PostureDetector:
-    def __init__(self, neck_threshold=15.0, back_threshold=15.0, slouch_duration=2.0, calibration_time=3.0):
+    def __init__(self, neck_threshold=15.0, back_threshold=12.0, slouch_duration=2.0, calibration_time=3.0):
         self.pose = mp_pose.Pose(
             min_detection_confidence=0.7,
             min_tracking_confidence=0.7,

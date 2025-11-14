@@ -130,6 +130,7 @@ class BlinkDetector:
                     if not self.alert_active:
                         alert = f"Eyes closed for {closed_duration:.1f}s — possible drowsiness"
                         self.alert_active = True
+                        
                 elif closed_duration <= 2.0 or consistently_down:
                     self.alert_active = False
 

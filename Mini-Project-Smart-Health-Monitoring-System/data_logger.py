@@ -32,7 +32,7 @@ class DataLogger:
                 writer = csv.writer(f)
                 writer.writerow([
                     "timestamp", "ear", "total_blinks", "blinks_last_min", 
-                    "neck_angle", "back_angle", "slouch_flag", "alert"
+                    "neck_angle", "back_angle"
                 ])
             print("✅ New log file created with updated headers")
         else:
@@ -74,7 +74,7 @@ class DataLogger:
                 # New headers
                 writer.writerow([
                     "timestamp", "ear", "total_blinks", "blinks_last_min", 
-                    "neck_angle", "back_angle", "slouch_flag", "alert"
+                    "neck_angle", "back_angle"
                 ])
                 
                 # Migrate old rows, adding default back_angle
@@ -99,7 +99,7 @@ class DataLogger:
             writer = csv.writer(f)
             writer.writerow([
                 "timestamp", "ear", "total_blinks", "blinks_last_min", 
-                "neck_angle", "back_angle", "slouch_flag", "alert"
+                "neck_angle", "back_angle"
             ])
         print("✅ Created new log file")
 
@@ -118,9 +118,7 @@ class DataLogger:
                 int(total_blinks or 0),
                 round(blinks_last_min or 0, 2),
                 round(neck_angle or 0, 2),
-                round(back_angle or 0, 2),
-                slouch_flag,
-                alert if alert else "None"
+                round(back_angle or 0, 2)
             ])
         print(f"✅ Data logged: Neck={neck_angle:.1f}°, Back={back_angle:.1f}°")
 
@@ -133,8 +131,6 @@ class DataLogger:
                     "blinks_last_min": blinks_last_min,
                     "neck_angle": neck_angle,
                     "back_angle": back_angle,
-                    "slouch_flag": slouch_flag,
-                    "alert": alert or "None"
                 }
                 push_log(self.firebase_ref, payload)
             except Exception as e:
