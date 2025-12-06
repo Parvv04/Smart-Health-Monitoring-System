@@ -7,7 +7,7 @@ from collections import deque
 mp_pose = mp.solutions.pose
 
 class PostureDetector:
-    def __init__(self, neck_threshold=15.0, back_threshold=12.0, slouch_duration=2.0, calibration_time=3.0):
+    def __init__(self, neck_threshold=15.0, back_threshold=1.0, slouch_duration=2., calibration_time=3.0):
         self.pose = mp_pose.Pose(
             min_detection_confidence=0.7,
             min_tracking_confidence=0.7,
@@ -59,52 +59,33 @@ class PostureDetector:
             return 0.0
 
     def calculate_back_angle(self, landmarks, image_w, image_h):
-        """Calculate upper back curvature using shoulders and ears (no hips needed)"""
+        """Calculate spine bending using shoulders and hips (most reliable)"""
         try:
-            # Use shoulders and ears to estimate back curvature
-            # When back is straight: ears are above shoulders
-            # When back is hunched: ears move forward relative to shoulders
-            
-            left_shoulder = landmarks[11]    # Left shoulder
-            right_shoulder = landmarks[12]   # Right shoulder
-            left_ear = landmarks[7]          # Left ear
-            right_ear = landmarks[8]         # Right ear
-            
-            # Calculate midpoints
-            shoulder_mid_x = (left_shoulder.x + right_shoulder.x) / 2
-            shoulder_mid_y = (left_shoulder.y + right_shoulder.y) / 2
-            ear_mid_x = (left_ear.x + right_ear.x) / 2
-            ear_mid_y = (left_ear.y + right_ear.y) / 2
-            
-            # Convert to pixel coordinates
-            shoulder_x = shoulder_mid_x * image_w
-            shoulder_y = shoulder_mid_y * image_h
-            ear_x = ear_mid_x * image_w
-            ear_y = ear_mid_y * image_h
-            
-            # Calculate the forward projection of ears relative to shoulders
-            # When sitting straight: ear_x ≈ shoulder_x
-            # When hunched: ear_x > shoulder_x (ears forward of shoulders)
-            forward_projection = ear_x - shoulder_x
-            
-            # Calculate vertical alignment
-            vertical_alignment = ear_y - shoulder_y  # Should be negative when upright
-            
-            # Calculate back angle based on forward projection and vertical alignment
-            # This gives us an estimate of how much the upper back is hunched
-            if abs(vertical_alignment) < 1:
-                vertical_alignment = 1 if vertical_alignment >= 0 else -1
-                
-            back_angle = math.degrees(math.atan(abs(forward_projection) / abs(vertical_alignment)))
-            
-            # Scale the angle to be more meaningful (0-30 degrees range)
-            scaled_angle = back_angle * 3  # Scale factor to make it more sensitive
-            
-            return min(scaled_angle, 45)  # Cap at 45 degrees
-            
-        except Exception as e:
-            print(f"Back angle calculation error: {e}")
+            left_shoulder = landmarks[11]
+            right_shoulder = landmarks[12]
+            left_hip = landmarks[23]
+            right_hip = landmarks[24]
+
+            # Midpoints
+            shoulder_x = (left_shoulder.x + right_shoulder.x) / 2 * image_w
+            shoulder_y = (left_shoulder.y + right_shoulder.y) / 2 * image_h
+
+            hip_x = (left_hip.x + right_hip.x) / 2 * image_w
+            hip_y = (left_hip.y + right_hip.y) / 2 * image_h
+
+            # Vertical vector (hip to shoulder)
+            dx = shoulder_x - hip_x
+            dy = shoulder_y - hip_y
+
+            # Angle of spine from vertical
+            angle_rad = math.atan2(abs(dx), abs(dy))
+            angle_deg = math.degrees(angle_rad)
+
+            return angle_deg  # 0° = straight, higher = more bend
+
+        except:
             return 0.0
+
 
     def process(self, image_rgb, image_w, image_h):
         results = self.pose.process(image_rgb)
@@ -113,59 +94,56 @@ class PostureDetector:
         back_angle = 0.0
 
         if results.pose_landmarks:
-            # Calculate both angles
             neck_angle = self.calculate_neck_angle(results.pose_landmarks.landmark, image_w, image_h)
             back_angle = self.calculate_back_angle(results.pose_landmarks.landmark, image_w, image_h)
-            
-            # Calibration phase
+        
             if not self.calibrated:
                 if time.time() - self.calibration_start < self.calibration_time:
                     print(f"📏 Calibrating... Neck: {neck_angle:.1f}° | Back: {back_angle:.1f}°")
                 else:
                     self.calibrated = True
-                    print(f"✅ Calibration complete! Now monitoring both neck and back...")
-            
-            # Active monitoring after calibration
+                    print(f"✅ Calibration complete! Now monitoring...")
+
             else:
                 # Debug info
                 print(f"📐 Neck: {neck_angle:.1f}° (>{self.neck_threshold}?) | Back: {back_angle:.1f}° (>{self.back_threshold}?)")
-                
-                # Check for NECK slouching
+            
                 neck_slouching = neck_angle > self.neck_threshold
-                # Check for BACK slouching  
                 back_slouching = back_angle > self.back_threshold
                 
-                # Combined slouch detection
                 is_slouching = neck_slouching or back_slouching
-                
+            
                 if is_slouching:
                     if self.slouch_start is None:
                         self.slouch_start = time.time()
-                        # Determine which type of slouch
+                        # Determine slouch type
                         if neck_slouching and back_slouching:
                             slouch_type = "neck and back"
                         elif neck_slouching:
-                            slouch_type = "neck"
+                            slouch_type = "neck" 
                         else:
                             slouch_type = "back"
-                        print(f"⚠️ {slouch_type.title()} slouch detected!")
-                    
-                    # Check if slouch has lasted long enough to trigger alert
+                        print(f"⚠️ {slouch_type.title()} slouch detected! Starting timer...")
+                
+                    # Check if slouch has lasted long enough
                     elif time.time() - self.slouch_start >= self.slouch_duration:
+                        # IMPROVED ALERT MESSAGES - More descriptive
                         if neck_slouching and back_slouching:
-                            alert = f"Bad posture! Straighten your neck and back. (Neck: {neck_angle:.1f}°, Back: {back_angle:.1f}°)"
+                            alert = f"POSTURE: Straighten your neck and back! (Neck: {neck_angle:.1f}°, Back: {back_angle:.1f}°)"
                         elif neck_slouching:
-                            alert = f"Neck strain! Sit upright. (Neck angle: {neck_angle:.1f}°)"
+                            alert = f"POSTURE: Neck strain! Sit upright. (Angle: {neck_angle:.1f}°)"
                         else:
-                            alert = f"Hunched back! Straighten your spine. (Back angle: {back_angle:.1f}°)"
-                        print(f"🚨 POSTURE ALERT: {alert}")
+                            alert = f"POSTURE: Hunched back! Straighten spine. (Angle: {back_angle:.1f}°)"
+                        print(f"🚨 ALERT TRIGGERED: {alert}")
                 else:
-                    # Reset if posture is corrected
                     if self.slouch_start is not None:
-                        print(f"✅ Posture corrected")
+                        print(f"✅ Posture corrected - resetting timer")
                     self.slouch_start = None
-        
+    
         return neck_angle, back_angle, alert
 
     def close(self):
-        self.pose.close()
+        """Close the MediaPipe Pose instance to release resources"""
+        if hasattr(self, 'pose'):
+            self.pose.close()
+            print("✅ PostureDetector closed successfully")

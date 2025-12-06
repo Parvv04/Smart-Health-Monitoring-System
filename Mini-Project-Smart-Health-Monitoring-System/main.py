@@ -11,6 +11,8 @@ from posture_detector import PostureDetector
 from data_logger import DataLogger
 from ui_notifications import show_notification
 from health_report import show_report
+from break_reminder import BreakReminder
+
 
 last_posture_alert = 0
 last_drowsy_alert = 0
@@ -63,15 +65,13 @@ def draw_overlay(frame, ear, blinks_total, blinks_min, neck_angle, back_angle, a
 # ===========================================================
 # REPORT VIEWER
 # ===========================================================
-# in main.py (replace existing view_report)
 def view_report():
-
     if not os.path.exists("logs/health_log.csv"):
         messagebox.showwarning("No Data", "No report found. Please start monitoring first.")
         return
 
     """Display the CSV health report in a new window."""
-    LOG_PATH = "logs/health_log.csv"   # <- match DataLogger path
+    LOG_PATH = "logs/health_log.csv"
 
     try:
         with open(LOG_PATH, "r", newline="") as file:
@@ -89,17 +89,42 @@ def view_report():
         style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"))
         style.configure("Treeview", font=("Segoe UI", 10))
 
-        tree = ttk.Treeview(win, columns=("Time", "Alert"), show="headings", height=15)
+        # UPDATED: Now showing all columns including alert
+        tree = ttk.Treeview(win, columns=("Time", "EAR", "Total Blinks", "Blinks/Min", "Neck", "Back", "Slouch", "Alert"), show="headings", height=15)
         tree.heading("Time", text="Timestamp")
-        tree.heading("Alert", text="Event / Alert")
-        tree.column("Time", width=200, anchor="center")
-        tree.column("Alert", width=450, anchor="w")
+        tree.heading("EAR", text="EAR")
+        tree.heading("Total Blinks", text="Total Blinks")
+        tree.heading("Blinks/Min", text="Blinks/Min")
+        tree.heading("Neck", text="Neck Angle")
+        tree.heading("Back", text="Back Angle")
+        tree.heading("Slouch", text="Slouch Flag")
+        tree.heading("Alert", text="Alert")
+        
+        tree.column("Time", width=150)
+        tree.column("EAR", width=60)
+        tree.column("Total Blinks", width=80)
+        tree.column("Blinks/Min", width=80)
+        tree.column("Neck", width=80)
+        tree.column("Back", width=80)
+        tree.column("Slouch", width=70)
+        tree.column("Alert", width=200)
 
         for row in data[1:]:
-            # guard against rows with fewer columns
-            timestamp = row[0] if len(row) > 0 else ""
-            alert = row[5] if len(row) > 5 else ""
-            tree.insert("", "end", values=(timestamp, alert))
+            # Ensure we have at least 8 columns, pad with empty strings if not
+            padded_row = row + [""] * (8 - len(row)) if len(row) < 8 else row
+            timestamp = padded_row[0]
+            ear = padded_row[1] if len(padded_row) > 1 else ""
+            total_blinks = padded_row[2] if len(padded_row) > 2 else ""
+            blinks_min = padded_row[3] if len(padded_row) > 3 else ""
+            neck_angle = padded_row[4] if len(padded_row) > 4 else ""
+            back_angle = padded_row[5] if len(padded_row) > 5 else ""
+            slouch_flag = padded_row[6] if len(padded_row) > 6 else ""
+            alert = padded_row[7] if len(padded_row) > 7 else ""
+            
+            tree.insert("", "end", values=(
+                timestamp, ear, total_blinks, blinks_min, 
+                neck_angle, back_angle, slouch_flag, alert
+            ))
 
         tree.pack(padx=20, pady=20, fill="both", expand=True)
 
@@ -108,18 +133,20 @@ def view_report():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to open report: {e}")
 
-
 # ===========================================================
 # MONITORING LOOP
 # ===========================================================
 # In your main.py - UPDATE THE POSTURE DETECTION PART
+# ===========================================================
+# MONITORING LOOP - FIXED VERSION
+# ===========================================================
 def run_monitoring():
     global last_posture_alert, last_drowsy_alert
     
-    # Use the FIXED detectors
     blink = BlinkDetector()
-    posture = PostureDetector()  # This now uses the fixed version
+    posture = PostureDetector()
     logger = DataLogger()
+    break_reminder = BreakReminder()
     last_log = 0
 
     cap = cv2.VideoCapture(0)
@@ -143,10 +170,10 @@ def run_monitoring():
             frame = cv2.flip(frame, 1)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Process blink detection
+            # Process detectors
             ear, total_blinks, blinks_min, blink_alert = blink.process(rgb, frame.shape[1], frame.shape[0])
-            
             neck_angle, back_angle, posture_alert = posture.process(rgb, frame.shape[1], frame.shape[0])
+            break_alert = break_reminder.process()
 
             alerts = []
             current_time = time.time()
@@ -162,7 +189,7 @@ def run_monitoring():
                 )
                 last_drowsy_alert = current_time
 
-            # Handle posture alerts (FIXED)
+            # Handle posture alerts  
             if posture_alert and (current_time - last_posture_alert > ALERT_COOLDOWN):
                 alerts.append(posture_alert)
                 show_notification(
@@ -173,12 +200,29 @@ def run_monitoring():
                 )
                 last_posture_alert = current_time
 
-            # Log data every 5 seconds
+            # Handle break reminders
+            if break_alert:
+                alerts.append(break_alert)
+                show_notification(
+                    "Break Reminder",
+                    break_alert,
+                    on_ok=lambda: print("User took a break"),
+                    on_view_report=show_report
+                )
+
+            # 🔥 CRITICAL FIX: Log data every 5 seconds WITH PROPER ALERT
             if time.time() - last_log > 5:
-                logger.log(ear, total_blinks, blinks_min, neck_angle, back_angle, "; ".join(alerts))
+                # Combine all current alerts for logging
+                current_alert = "; ".join(alerts) if alerts else None
+                
+                # DEBUG: Print what we're about to log
+                print(f"📝 LOGGING: Ear={ear:.3f}, Blinks={total_blinks}, Neck={neck_angle:.1f}°, Back={back_angle:.1f}°, Alert='{current_alert}'")
+                
+                # This is the line that was broken - now passing the alert correctly
+                logger.log(ear, total_blinks, blinks_min, neck_angle, back_angle, current_alert)
                 last_log = time.time()
 
-            # Draw overlay with FIXED posture angle display
+            # Draw overlay
             frame = draw_overlay(frame, ear or 0.0, total_blinks, blinks_min, neck_angle, back_angle, alerts)
             cv2.imshow("Smart Health Monitor", frame)
 

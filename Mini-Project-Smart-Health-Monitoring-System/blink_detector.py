@@ -126,11 +126,10 @@ class BlinkDetector:
                 consistently_down = all(self.looking_down_history)
                 
                 # Alert only if eyes closed for long AND not consistently looking down
-                if closed_duration > 2.0 and not consistently_down:
+                if closed_duration > 4.0 and not consistently_down:
                     if not self.alert_active:
                         alert = f"Eyes closed for {closed_duration:.1f}s — possible drowsiness"
                         self.alert_active = True
-                        
                 elif closed_duration <= 2.0 or consistently_down:
                     self.alert_active = False
 

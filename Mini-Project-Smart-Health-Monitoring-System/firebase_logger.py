@@ -70,7 +70,7 @@ class DataLogger:
                 writer = csv.writer(f)
                 writer.writerow([
                     "timestamp", "ear", "total_blinks", "blinks_last_min", 
-                    "posture_angle"
+                    "posture_angle", "alert"
                 ])
             print("✅ New log file created")
         
@@ -95,6 +95,7 @@ class DataLogger:
                     int(total_blinks or 0),
                     int(blinks_last_min or 0),
                     round(posture_angle or 0, 1),
+
                 ])
             print(f"✅ Data logged locally: {timestamp}")
         except Exception as e:
@@ -108,6 +109,7 @@ class DataLogger:
                 "total_blinks": total_blinks,
                 "blinks_last_min": blinks_last_min,
                 "posture_angle": posture_angle,
-                "device": "laptop_camera"
+                "device": "laptop_camera",
+                "alert": alert if alert else "None"
             }
             push_log(self.firebase_ref, payload)
